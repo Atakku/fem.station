@@ -1,0 +1,19 @@
+Author: Atakku <atakkudev@gmail.com>
+
+Removes Mailing Unit item filter, so they can be used for transport purposes!
+===================================================================
+--- a/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml
++++ b/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml
+@@ -130,12 +130,6 @@
+     graph: DisposalMachine
+     node: mailing_unit
+   - type: DisposalUnit
+-    whitelist:
+-      components:
+-      - Item
+-    blacklist:
+-      components:
+-      - EntityStorage
+   - type: MailingUnit
+   - type: DeviceNetwork
+     deviceNetId: Wired
