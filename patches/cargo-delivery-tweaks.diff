@@ -1,0 +1,63 @@
+Author: Atakku <atakkudev@gmail.com>
+
+Multiple delivery related tweaks:
+- Decrease delivery cooldown
+- Double delivery ratio
+- Stop pipebombs from exploding on expire
+- Slightly increase mailbox capacity
+===================================================================
+diff --git a/Content.Server/Delivery/CargoDeliveryDataComponent.cs b/Content.Server/Delivery/CargoDeliveryDataComponent.cs
+index 3e741e3a22..04ae8f6f7f 100644
+--- a/Content.Server/Delivery/CargoDeliveryDataComponent.cs
++++ b/Content.Server/Delivery/CargoDeliveryDataComponent.cs
+@@ -18,13 +18,13 @@ public sealed partial class CargoDeliveryDataComponent : Component
+     /// Minimum cooldown after a delivery spawns.
+     /// </summary>
+     [DataField]
+-    public TimeSpan MinDeliveryCooldown = TimeSpan.FromMinutes(3);
++    public TimeSpan MinDeliveryCooldown = TimeSpan.FromMinutes(2);
+ 
+     /// <summary>
+     /// Maximum cooldown after a delivery spawns.
+     /// </summary>
+     [DataField]
+-    public TimeSpan MaxDeliveryCooldown = TimeSpan.FromMinutes(7);
++    public TimeSpan MaxDeliveryCooldown = TimeSpan.FromMinutes(5);
+ 
+ 
+     /// <summary>
+@@ -32,7 +32,7 @@ public sealed partial class CargoDeliveryDataComponent : Component
+     /// 1 delivery per X players.
+     /// </summary>
+     [DataField]
+-    public float PlayerToDeliveryRatio = 8f;
++    public float PlayerToDeliveryRatio = 4f;
+ 
+     /// <summary>
+     /// The minimum amount of deliveries that will spawn.
+diff --git a/Content.Shared/Delivery/DeliveryBombComponent.cs b/Content.Shared/Delivery/DeliveryBombComponent.cs
+index eed2a9b6ad..9d0cf907d2 100644
+--- a/Content.Shared/Delivery/DeliveryBombComponent.cs
++++ b/Content.Shared/Delivery/DeliveryBombComponent.cs
+@@ -54,7 +54,7 @@ public sealed partial class DeliveryBombComponent : Component
+     /// Requires to be priority as well.
+     /// </summary>
+     [DataField]
+-    public bool PrimeOnExpire = true;
++    public bool PrimeOnExpire = false;
+ 
+     /// <summary>
+     /// Multiplier to choose when a crazy person actually opens it.
+diff --git a/Content.Shared/Delivery/DeliverySpawnerComponent.cs b/Content.Shared/Delivery/DeliverySpawnerComponent.cs
+index 81e8c97cf5..8eaf09694c 100644
+--- a/Content.Shared/Delivery/DeliverySpawnerComponent.cs
++++ b/Content.Shared/Delivery/DeliverySpawnerComponent.cs
+@@ -20,7 +20,7 @@ public sealed partial class DeliverySpawnerComponent : Component
+     /// The max amount of deliveries this spawner can hold at a time.
+     /// </summary>
+     [DataField]
+-    public int MaxContainedDeliveryAmount = 20;
++    public int MaxContainedDeliveryAmount = 32;
+ 
+     /// <summary>
+     /// The currently held amount of deliveries.

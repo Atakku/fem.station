@@ -2,6 +2,8 @@ Author: Atakku <atakkudev@gmail.com>
 
 Removes Mailing Unit item filter, so they can be used for transport purposes!
 ===================================================================
+diff --git a/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml b/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml
+index dda7d51b69..91685910d1 100644
 --- a/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml
 +++ b/Resources/Prototypes/Entities/Structures/Piping/Disposal/units.yml
 @@ -130,12 +130,6 @@
