@@ -1,0 +1,13 @@
+diff --git a/Content.Server/Atmos/EntitySystems/AtmosphereSystem.HighPressureDelta.cs b/Content.Server/Atmos/EntitySystems/AtmosphereSystem.HighPressureDelta.cs
+index 9720cd38a8..0fe4841e6e 100644
+--- a/Content.Server/Atmos/EntitySystems/AtmosphereSystem.HighPressureDelta.cs
++++ b/Content.Server/Atmos/EntitySystems/AtmosphereSystem.HighPressureDelta.cs
+@@ -17,7 +17,7 @@ public sealed partial class AtmosphereSystem
+     {
+         private static readonly ProtoId<SoundCollectionPrototype> DefaultSpaceWindSounds = "SpaceWind";
+ 
+-        private const int SpaceWindSoundCooldownCycles = 75;
++        private const int SpaceWindSoundCooldownCycles = 5;
+ 
+         private int _spaceWindSoundCooldown = 0;
+ 
