@@ -577,10 +577,18 @@ index e7433de604..4a32544732 100644
          if (uid == args.UserUid)
          {
 diff --git a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
-index 72374a8a30..085a97e535 100644
+index 72374a8a30..0d45481257 100644
 --- a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
 +++ b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
-@@ -58,6 +58,7 @@ public abstract partial class SharedStationAiSystem : EntitySystem
+@@ -15,6 +15,7 @@
+ using Content.Shared.Popups;
+ using Content.Shared.Power;
+ using Content.Shared.Power.EntitySystems;
++using Content.Shared.Silicons.Borgs;
+ using Content.Shared.StationAi;
+ using Content.Shared.Verbs;
+ using Robust.Shared.Audio;
+@@ -58,6 +59,7 @@ public abstract partial class SharedStationAiSystem : EntitySystem
      [Dependency] private readonly   SharedUserInterfaceSystem _uiSystem = default!;
      [Dependency] private readonly   StationAiVisionSystem _vision = default!;
      [Dependency] private readonly   IPrototypeManager _protoManager = default!;
@@ -588,7 +596,7 @@ index 72374a8a30..085a97e535 100644
  
      // StationAiHeld is added to anything inside of an AI core.
      // StationAiHolder indicates it can hold an AI positronic brain (e.g. holocard / core).
-@@ -232,7 +233,12 @@ private void OnIntellicardDoAfter(Entity<StationAiHolderComponent> ent, ref Inte
+@@ -232,7 +234,12 @@ private void OnIntellicardDoAfter(Entity<StationAiHolderComponent> ent, ref Inte
  
          // Try to insert our thing into them
          if (_slots.CanEject(ent.Owner, args.User, ent.Comp.Slot))
@@ -602,7 +610,7 @@ index 72374a8a30..085a97e535 100644
              if (!_slots.TryInsert(args.Args.Target.Value, targetHolder.Slot, ent.Comp.Slot.Item!.Value, args.User, excludeUserAudio: true))
              {
                  return;
-@@ -290,6 +296,10 @@ private void OnHolderInteract(Entity<StationAiHolderComponent> ent, ref AfterInt
+@@ -290,6 +297,10 @@ private void OnHolderInteract(Entity<StationAiHolderComponent> ent, ref AfterInt
              intelliComp.NextWarningAllowed = _timing.CurTime + intelliComp.WarningDelay;
              AnnounceIntellicardUsage(held, intelliComp.WarningSound);
          }
