@@ -563,10 +563,18 @@ index 0000000000..890112d705
 +    Key
 +}
 diff --git a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs b/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
-index e7433de604..4a32544732 100644
+index e7433de604..1b538efc2e 100644
 --- a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
 +++ b/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
-@@ -33,6 +33,9 @@ private void OnGotEmagged(EntityUid uid, EmagSiliconLawComponent component, ref
+@@ -1,6 +1,7 @@
+ ﻿using Content.Shared.Emag.Systems;
+ using Content.Shared.Mind;
+ using Content.Shared.Popups;
++using Content.Shared.Silicons.Borgs.Components;
+ using Content.Shared.Silicons.Laws.Components;
+ using Content.Shared.Stunnable;
+ using Content.Shared.Wires;
+@@ -33,6 +34,9 @@ private void OnGotEmagged(EntityUid uid, EmagSiliconLawComponent component, ref
          if (_emag.CheckFlag(uid, EmagType.Interaction))
              return;
  
