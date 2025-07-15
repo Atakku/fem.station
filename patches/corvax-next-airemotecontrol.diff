@@ -1,6 +1,3 @@
-Source: https://github.com/Goob-Station/Goob-Station
-License: AGPL-3.0-or-later
-===================================================================
 diff --git a/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs b/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs
 index 06e5674d9c..7a6d5c434c 100644
 --- a/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs
@@ -652,6 +649,44 @@ index 6dab1ee491..bec83d3cc2 100644
 +    [DataField]
 +    public EntityUid? CurrentConnectedEntity;
 +}
+diff --git a/Resources/Prototypes/Actions/station_ai.yml b/Resources/Prototypes/Actions/station_ai.yml
+index 4dbaf07aab..3777af1af5 100644
+--- a/Resources/Prototypes/Actions/station_ai.yml
++++ b/Resources/Prototypes/Actions/station_ai.yml
+@@ -57,3 +57,33 @@
+     useDelay: 0.5
+   - type: InstantAction
+     event: !type:ToggleLawsScreenEvent
++
++- type: entity
++  id: ActionBackToAi
++  name: Back to Ai
++  description: Sends your mind back to the core.
++  components:
++  - type: InstantAction
++    checkConsciousness: false
++    checkCanInteract: false
++    priority: -9
++    itemIconStyle: BigAction
++    icon:
++      sprite: Interface/Actions/actions_ai.rsi
++      state: ai_core
++    event: !type:ReturnMindIntoAiEvent
++
++- type: entity
++  id: ActionOpenRemoteDevicesMenu
++  name: Open list of remote devices
++  description: Opens a menu with available remote devices.
++  components:
++  - type: InstantAction
++    checkConsciousness: false
++    checkCanInteract: false
++    priority: -9
++    itemIconStyle: BigAction
++    event: !type:ToggleRemoteDevicesScreenEvent
++    icon:
++      sprite: Interface/Actions/actions_ai.rsi
++      state: borg_control
 diff --git a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
 index 303f7dc676..47947a68e3 100644
 --- a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
@@ -738,3 +773,43 @@ index b5646de7e7..53ebdad379 100644
  
  - type: technology
    id: BasicAnomalousResearch
+diff --git a/Resources/Textures/Interface/Actions/actions_ai.rsi/borg_control.png b/Resources/Textures/Interface/Actions/actions_ai.rsi/borg_control.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..81fab50f1c859cb0f77eca0ec7deff3805b88d94
+GIT binary patch
+literal 372
+zcmeAS@N?(olHy`uVBq!ia0vp^3LwnE3?yBabR7dyjKx9jP7LeL$-D$|SkfJR9T^xl
+z_H+M9WCilI0(?STjg5_gOa?wl1}R+zg9L^Z0u1+r8G@EFc=R(g{AX}&6^vb~T(BLe
+z#6jZH6p+f2Aiv=M$biB1z?~C78O{Qa$YP*^!ywFfJby(BP;jTGi(`m||I*1fg_;$3
+zTo1Y(Qu_aY_udnHOK-fCH08e|!@T%VeuapDcaj6gP6d@is{O1+>~Y*)3Z_0hY*Lau
+zC4B+;3xYLUt*6<2xFcX~ykFXl?eIji@Sl%WEUzwY49?~KZf!i7@${Lf$6u6zv|<Ct
+ztqXRNC+^&Kax}k{-n{jigv|>My?-ejjY%g=oQ;H!3Z7zE!1BScboU7pHu1EQuPREV
+uY-{h9T3Q5UE3uc^pZj+G_c^r(f2E_&ipGali{Alyg2B_(&t;ucLK6VdI)y6$
+
+literal 0
+HcmV?d00001
+
+diff --git a/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json b/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
+index 434b9052e0..5e902b118a 100644
+--- a/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
++++ b/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
+@@ -1,7 +1,7 @@
+ {
+ 	"version": 1,
+ 	"license": "CC-BY-SA-3.0",
+-	"copyright": "Taken from tgstation at commit https://github.com/tgstation/tgstation/blob/c473a8bcc28fbd80827dfca5660d81ca6e833e2c/icons/hud/screen_ai.dmi , some sprites updated by ScarKy0(Discord), door actions by ScarKy0(Discord) and @Max_tanuki(Twitter)",
++	"copyright": "Taken from tgstation at commit https://github.com/tgstation/tgstation/blob/c473a8bcc28fbd80827dfca5660d81ca6e833e2c/icons/hud/screen_ai.dmi , some sprites updated by ScarKy0(Discord), door actions by ScarKy0(Discord) and @Max_tanuki(Twitter), borg_control modified from malf modules by @AgentePanela(Twitter)",
+ 	"size": {
+ 		"x": 32,
+ 		"y": 32
+@@ -48,6 +48,9 @@
+ 		},
+ 		{
+ 			"name": "door_overcharge_off"
+-		}
++		},
++    {
++			"name": "borg_control"
++    }
+ 	]
+ }
