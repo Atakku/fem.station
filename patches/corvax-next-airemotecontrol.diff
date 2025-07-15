@@ -1,0 +1,369 @@
+Source: https://github.com/Goob-Station/Goob-Station
+License: AGPL-3.0-or-later
+===================================================================
+diff --git a/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs b/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs
+index 06e5674d9c..7a6d5c434c 100644
+--- a/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs
++++ b/Content.Client/Robotics/UI/RoboticsConsoleWindow.xaml.cs
+@@ -77,6 +77,14 @@ public void UpdateState(RoboticsConsoleState state)
+         if (_selected is {} selected && !_cyborgs.ContainsKey(selected))
+             _selected = null;
+ 
++        var isAiControllable = false;
++
++        if (_selected != null)
++        {
++            _cyborgs.TryGetValue(_selected, out var data);
++            isAiControllable = data.IsAiControllable;
++        }
++
+         var hasCyborgs = _cyborgs.Count > 0;
+         NoCyborgs.Visible = !hasCyborgs;
+         CyborgsContainer.Visible = hasCyborgs;
+diff --git a/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs b/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs
+index d1a32a6a5b..a83f36a2e1 100644
+--- a/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs
++++ b/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs
+@@ -28,6 +28,21 @@ protected override void SelectBorgModule(Entity<BorgSwitchableTypeComponent> ent
+         if (TryComp(ent, out ActiveRadioComponent? activeRadio))
+             activeRadio.Channels = [.. radioChannels];
+ 
++        if (TryComp(ent, out AiRemoteControllerComponent? aiRemoteComp))
++        {
++            if (TryComp(aiRemoteComp.AiHolder, out IntrinsicRadioTransmitterComponent? stationAiTransmitter) && transmitter != null)
++            {
++                aiRemoteComp.PreviouslyTransmitterChannels = [.. radioChannels];
++                transmitter.Channels = [.. stationAiTransmitter.Channels];
++            }
++
++            if (TryComp(aiRemoteComp.AiHolder, out ActiveRadioComponent? stationAiActiveRadio) && activeRadio != null)
++            {
++                aiRemoteComp.PreviouslyActiveRadioChannels = [.. radioChannels];
++                activeRadio.Channels = [.. stationAiActiveRadio.Channels];
++            }
++        }
++
+         // Borg transponder for the robotics console
+         if (TryComp(ent, out BorgTransponderComponent? transponder))
+         {
+diff --git a/Content.Server/Silicons/Borgs/BorgSystem.Transponder.cs b/Content.Server/Silicons/Borgs/BorgSystem.Transponder.cs
+index e950d3f288..b51c0cf6d9 100644
+--- a/Content.Server/Silicons/Borgs/BorgSystem.Transponder.cs
++++ b/Content.Server/Silicons/Borgs/BorgSystem.Transponder.cs
+@@ -47,7 +47,8 @@ public override void Update(float frameTime)
+                 charge,
+                 chassis.ModuleCount,
+                 hasBrain,
+-                canDisable);
++                canDisable,
++                HasComp<AiRemoteControllerComponent>(uid));
+ 
+             var payload = new NetworkPayload()
+             {
+diff --git a/Content.Server/Silicons/Borgs/BorgSystem.cs b/Content.Server/Silicons/Borgs/BorgSystem.cs
+index 0cd407000f..4c2bcbfca5 100644
+--- a/Content.Server/Silicons/Borgs/BorgSystem.cs
++++ b/Content.Server/Silicons/Borgs/BorgSystem.cs
+@@ -104,6 +104,7 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
+         var used = args.Used;
+         TryComp<BorgBrainComponent>(used, out var brain);
+         TryComp<BorgModuleComponent>(used, out var module);
++        TryComp<AiRemoteBrainComponent>(used, out var aiBrain);
+ 
+         if (TryComp<WiresPanelComponent>(uid, out var panel) && !panel.Open)
+         {
+@@ -142,6 +143,20 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
+             args.Handled = true;
+             UpdateUI(uid, component);
+         }
++
++        
++        if (component.BrainEntity == null && aiBrain != null &&
++            _whitelistSystem.IsWhitelistPassOrNull(component.BrainWhitelist, used))
++        {
++            EnsureComp<AiRemoteControllerComponent>(uid);
++            _container.Insert(used, component.BrainContainer);
++            _adminLog.Add(LogType.Action, LogImpact.Medium,
++                $"{ToPrettyString(args.User):player} installed ai remote brain {ToPrettyString(used)} into borg {ToPrettyString(uid)}");
++            args.Handled = true;
++            BorgActivate(uid, component);
++
++            UpdateUI(uid, component);
++        }
+     }
+ 
+     /// <summary>
+@@ -176,6 +191,13 @@ protected override void OnRemoved(EntityUid uid, BorgChassisComponent component,
+         {
+             _mind.TransferTo(mindId, args.Entity, mind: mind);
+         }
++        
++        if (HasComp<AiRemoteBrainComponent>(args.Entity))
++        {
++            BorgDeactivate(uid, component);
++            RemComp<AiRemoteControllerComponent>(uid);
++            RemComp<StationAiVisionComponent>(uid);
++        }
+     }
+ 
+     private void OnMindAdded(EntityUid uid, BorgChassisComponent component, MindAddedMessage args)
+diff --git a/Content.Server/Silicons/Laws/SiliconLawSystem.cs b/Content.Server/Silicons/Laws/SiliconLawSystem.cs
+index 444732b2b3..936759a2a8 100644
+--- a/Content.Server/Silicons/Laws/SiliconLawSystem.cs
++++ b/Content.Server/Silicons/Laws/SiliconLawSystem.cs
+@@ -11,8 +11,11 @@
+ using Content.Shared.Mind;
+ using Content.Shared.Mind.Components;
+ using Content.Shared.Roles;
++using Content.Shared.Silicons.Borgs.Components;
+ using Content.Shared.Silicons.Laws;
+ using Content.Shared.Silicons.Laws.Components;
++using Content.Shared.Silicons.StationAi;
++using Content.Shared.Tag;
+ using Content.Shared.Wires;
+ using Robust.Server.GameObjects;
+ using Robust.Shared.Audio;
+@@ -33,6 +36,7 @@ public sealed class SiliconLawSystem : SharedSiliconLawSystem
+     [Dependency] private readonly StationSystem _station = default!;
+     [Dependency] private readonly UserInterfaceSystem _userInterface = default!;
+     [Dependency] private readonly EmagSystem _emag = default!;
++    [Dependency] private readonly TagSystem _tagSystem = default!;
+ 
+     /// <inheritdoc/>
+     public override void Initialize()
+@@ -62,6 +66,10 @@ private void OnMindAdded(EntityUid uid, SiliconLawBoundComponent component, Mind
+         if (!TryComp<ActorComponent>(uid, out var actor))
+             return;
+ 
++        if (HasComp<AiRemoteControllerComponent>(uid)
++            || _tagSystem.HasTag(uid, "StationAi")) // skip a law's notification for remotable and AI
++            return;
++
+         var msg = Loc.GetString("laws-notify");
+         var wrappedMessage = Loc.GetString("chat-manager-server-wrap-message", ("message", msg));
+         _chatManager.ChatMessageToOne(ChatChannel.Server, msg, wrappedMessage, default, false, actor.PlayerSession.Channel, colorOverride: Color.FromHex("#5ed7aa"));
+@@ -154,6 +162,9 @@ private void OnEmagLawsAdded(EntityUid uid, SiliconLawProviderComponent componen
+         if (component.Lawset == null)
+             component.Lawset = GetLawset(component.Laws);
+ 
++        if (HasComp<AiRemoteControllerComponent>(uid)) // You can't emag controllable entities
++            return;
++
+         // Show the silicon has been subverted.
+         component.Subverted = true;
+ 
+@@ -304,8 +315,26 @@ protected override void OnUpdaterInsert(Entity<SiliconLawUpdaterComponent> ent,
+         while (query.MoveNext(out var update))
+         {
+             SetLaws(lawset, update, provider.LawUploadSound);
++
++            if (TryComp<StationAiHeldComponent>(update, out var stationAiHeldComp)
++                && stationAiHeldComp.CurrentConnectedEntity != null
++                && HasComp<SiliconLawProviderComponent>(stationAiHeldComp.CurrentConnectedEntity))
++            {
++                SetLaws(lawset, stationAiHeldComp.CurrentConnectedEntity.Value, provider.LawUploadSound);
++            }
+         }
+     }
++
++    public void SetLawsSilent(List<SiliconLaw> newLaws, EntityUid target, SoundSpecifier? cue = null)
++    {
++        if (!TryComp<SiliconLawProviderComponent>(target, out var component))
++            return;
++
++        if (component.Lawset == null)
++            component.Lawset = new SiliconLawset();
++
++        component.Lawset.Laws = newLaws;
++    }
+ }
+ 
+ [ToolshedCommand, AdminCommand(AdminFlags.Admin)]
+diff --git a/Content.Shared/Robotics/RoboticsConsoleUi.cs b/Content.Shared/Robotics/RoboticsConsoleUi.cs
+index 7a6974fb51..d859b019f7 100644
+--- a/Content.Shared/Robotics/RoboticsConsoleUi.cs
++++ b/Content.Shared/Robotics/RoboticsConsoleUi.cs
+@@ -111,7 +111,10 @@ public partial record struct CyborgControlData
+     [DataField(customTypeSerializer: typeof(TimeOffsetSerializer))]
+     public TimeSpan Timeout = TimeSpan.Zero;
+ 
+-    public CyborgControlData(SpriteSpecifier? chassisSprite, string chassisName, string name, float charge, int moduleCount, bool hasBrain, bool canDisable)
++    [DataField]
++    public bool IsAiControllable;
++
++    public CyborgControlData(SpriteSpecifier? chassisSprite, string chassisName, string name, float charge, int moduleCount, bool hasBrain, bool canDisable, bool isAiControllable)
+     {
+         ChassisSprite = chassisSprite;
+         ChassisName = chassisName;
+@@ -120,6 +123,7 @@ public CyborgControlData(SpriteSpecifier? chassisSprite, string chassisName, str
+         ModuleCount = moduleCount;
+         HasBrain = hasBrain;
+         CanDisable = canDisable;
++        IsAiControllable = isAiControllable;
+     }
+ }
+ 
+diff --git a/Content.Shared/Silicons/Borgs/Components/AiRemoteBrainComponent.cs b/Content.Shared/Silicons/Borgs/Components/AiRemoteBrainComponent.cs
+new file mode 100644
+index 0000000000..5dc739fc22
+--- /dev/null
++++ b/Content.Shared/Silicons/Borgs/Components/AiRemoteBrainComponent.cs
+@@ -0,0 +1,6 @@
++namespace Content.Shared.Silicons.Borgs.Components;
++
++[RegisterComponent]
++public sealed partial class AiRemoteBrainComponent : Component
++{
++}
+\ No newline at end of file
+diff --git a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs b/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
+index e7433de604..4a32544732 100644
+--- a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
++++ b/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
+@@ -33,6 +33,9 @@ private void OnGotEmagged(EntityUid uid, EmagSiliconLawComponent component, ref
+         if (_emag.CheckFlag(uid, EmagType.Interaction))
+             return;
+ 
++        if (HasComp<AiRemoteControllerComponent>(uid))
++            return;
++
+         // prevent self-emagging
+         if (uid == args.UserUid)
+         {
+diff --git a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
+index 72374a8a30..085a97e535 100644
+--- a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
++++ b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
+@@ -58,6 +58,7 @@ public abstract partial class SharedStationAiSystem : EntitySystem
+     [Dependency] private readonly   SharedUserInterfaceSystem _uiSystem = default!;
+     [Dependency] private readonly   StationAiVisionSystem _vision = default!;
+     [Dependency] private readonly   IPrototypeManager _protoManager = default!;
++    [Dependency] private readonly SharedAiRemoteControlSystem _remoteSystem = default!;
+ 
+     // StationAiHeld is added to anything inside of an AI core.
+     // StationAiHolder indicates it can hold an AI positronic brain (e.g. holocard / core).
+@@ -232,7 +233,12 @@ private void OnIntellicardDoAfter(Entity<StationAiHolderComponent> ent, ref Inte
+ 
+         // Try to insert our thing into them
+         if (_slots.CanEject(ent.Owner, args.User, ent.Comp.Slot))
+-        {
++        {            
++            if (ent.Comp.Slot.Item != null
++                && TryComp<StationAiHeldComponent>(ent.Comp.Slot.Item, out var stationAiHeldComp))
++                if (stationAiHeldComp.CurrentConnectedEntity != null)
++                    _remoteSystem.ReturnMindIntoAi(stationAiHeldComp.CurrentConnectedEntity.Value);
++            
+             if (!_slots.TryInsert(args.Args.Target.Value, targetHolder.Slot, ent.Comp.Slot.Item!.Value, args.User, excludeUserAudio: true))
+             {
+                 return;
+@@ -290,6 +296,10 @@ private void OnHolderInteract(Entity<StationAiHolderComponent> ent, ref AfterInt
+             intelliComp.NextWarningAllowed = _timing.CurTime + intelliComp.WarningDelay;
+             AnnounceIntellicardUsage(held, intelliComp.WarningSound);
+         }
++        
++        if (TryComp<StationAiHeldComponent>(held, out var heldComp))
++            if (heldComp.CurrentConnectedEntity != null)
++                AnnounceIntellicardUsage(heldComp.CurrentConnectedEntity.Value, intelliComp.WarningSound);
+ 
+         var doAfterArgs = new DoAfterArgs(EntityManager, args.User, cardHasAi ? intelliComp.UploadTime : intelliComp.DownloadTime, new IntellicardDoAfterEvent(), args.Target, ent.Owner)
+         {
+diff --git a/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs b/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs
+index 6dab1ee491..bec83d3cc2 100644
+--- a/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs
++++ b/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs
+@@ -6,4 +6,8 @@ namespace Content.Shared.Silicons.StationAi;
+ /// Indicates this entity is currently held inside of a station AI core.
+ /// </summary>
+ [RegisterComponent, NetworkedComponent]
+-public sealed partial class StationAiHeldComponent : Component;
++public sealed partial class StationAiHeldComponent : Component
++{
++    [DataField]
++    public EntityUid? CurrentConnectedEntity;
++}
+diff --git a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
+index 303f7dc676..47947a68e3 100644
+--- a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
++++ b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
+@@ -36,6 +36,7 @@
+     - ActionJumpToCore
+     - ActionSurvCameraLights
+     - ActionAIViewLaws
++    - ActionOpenRemoteDevicesMenu
+   - type: UserInterface
+     interfaces:
+       enum.RadarConsoleUiKey.Key:
+@@ -48,6 +49,8 @@
+         type: SiliconLawBoundUserInterface
+       enum.CommunicationsConsoleUiKey.Key:
+         type: CommunicationsConsoleBoundUserInterface
++      enum.RemoteDeviceUiKey.Key:
++        type: RemoteDevicesBoundUserInterface
+   - type: IntrinsicUI
+     uis:
+       enum.RadarConsoleUiKey.Key:
+diff --git a/Resources/Prototypes/Entities/Objects/Specific/Robotics/ai_remote.yml b/Resources/Prototypes/Entities/Objects/Specific/Robotics/ai_remote.yml
+new file mode 100644
+index 0000000000..508ac3bdd2
+--- /dev/null
++++ b/Resources/Prototypes/Entities/Objects/Specific/Robotics/ai_remote.yml
+@@ -0,0 +1,15 @@
++- type: entity
++  parent: BaseItem
++  id: AiRemoteBrain
++  name: "B.O.R.I.S. AI-Cyborg Remote Control"
++  description: Artificial Intelligence cyborg control board.
++  components:
++    - type: Sprite
++      sprite: Objects/Misc/module.rsi
++      state: boris
++    - type: Examiner
++    - type: AiRemoteBrain
++    - type: Actions
++    - type: Tag
++      tags:
++      - CannotSuicide
+diff --git a/Resources/Prototypes/Recipes/Lathes/Packs/robotics.yml b/Resources/Prototypes/Recipes/Lathes/Packs/robotics.yml
+index 74483c4ebe..8843f6d3f4 100644
+--- a/Resources/Prototypes/Recipes/Lathes/Packs/robotics.yml
++++ b/Resources/Prototypes/Recipes/Lathes/Packs/robotics.yml
+@@ -31,6 +31,7 @@
+   id: Robotics
+   recipes:
+   - ProximitySensor
++  - AiRemoteBrain
+ 
+ - type: latheRecipePack
+   id: BorgModules
+diff --git a/Resources/Prototypes/Recipes/Lathes/robot_parts.yml b/Resources/Prototypes/Recipes/Lathes/robot_parts.yml
+index 37f602b2e8..b472854e6e 100644
+--- a/Resources/Prototypes/Recipes/Lathes/robot_parts.yml
++++ b/Resources/Prototypes/Recipes/Lathes/robot_parts.yml
+@@ -105,3 +105,14 @@
+     Gold: 100
+     Silver: 100
+     Plasma: 1000
++
++- type: latheRecipe
++  parent: BaseRoboticsRecipe
++  id: AiRemoteBrain
++  result: AiRemoteBrain
++  completetime: 4
++  materials:
++    Steel: 300
++    Glass: 400
++    Gold: 400
++    Silver: 200
+\ No newline at end of file
+diff --git a/Resources/Prototypes/Research/experimental.yml b/Resources/Prototypes/Research/experimental.yml
+index b5646de7e7..53ebdad379 100644
+--- a/Resources/Prototypes/Research/experimental.yml
++++ b/Resources/Prototypes/Research/experimental.yml
+@@ -11,6 +11,7 @@
+   cost: 5000
+   recipeUnlocks:
+   - ProximitySensor
++  - AiRemoteBrain
+ 
+ - type: technology
+   id: BasicAnomalousResearch
