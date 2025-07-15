@@ -848,10 +848,10 @@ index 0000000000..f8400ec64e
 +ai-remote-control = Take control
 \ No newline at end of file
 diff --git a/Resources/Prototypes/Actions/station_ai.yml b/Resources/Prototypes/Actions/station_ai.yml
-index 4dbaf07aab..a5ece62f6d 100644
+index 4dbaf07aab..e6fdbb4993 100644
 --- a/Resources/Prototypes/Actions/station_ai.yml
 +++ b/Resources/Prototypes/Actions/station_ai.yml
-@@ -57,3 +57,31 @@
+@@ -57,3 +57,33 @@
      useDelay: 0.5
    - type: InstantAction
      event: !type:ToggleLawsScreenEvent
@@ -862,12 +862,13 @@ index 4dbaf07aab..a5ece62f6d 100644
 +  name: Back to Ai
 +  description: Sends your mind back to the core.
 +  components:
-+  - type: InstantAction
++  - type: Action
 +    priority: -9
 +    itemIconStyle: BigAction
 +    icon:
 +      sprite: Interface/Actions/actions_ai.rsi
 +      state: ai_core
++  - type: InstantAction
 +    event: !type:ReturnMindIntoAiEvent
 +
 +- type: entity
@@ -876,13 +877,14 @@ index 4dbaf07aab..a5ece62f6d 100644
 +  name: Open list of remote devices
 +  description: Opens a menu with available remote devices.
 +  components:
-+  - type: InstantAction
++  - type: Action
 +    priority: -9
 +    itemIconStyle: BigAction
-+    event: !type:ToggleRemoteDevicesScreenEvent
 +    icon:
 +      sprite: Interface/Actions/actions_ai.rsi
 +      state: borg_control
++  - type: InstantAction
++    event: !type:ToggleRemoteDevicesScreenEvent
 diff --git a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
 index 303f7dc676..47947a68e3 100644
 --- a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
