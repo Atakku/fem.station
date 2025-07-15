@@ -20,6 +20,216 @@ index 06e5674d9c..7a6d5c434c 100644
          var hasCyborgs = _cyborgs.Count > 0;
          NoCyborgs.Visible = !hasCyborgs;
          CyborgsContainer.Visible = hasCyborgs;
+diff --git a/Content.Client/Silicons/Borgs/AiRemoteControlSystem.cs b/Content.Client/Silicons/Borgs/AiRemoteControlSystem.cs
+new file mode 100644
+index 0000000000..bdbadccfe9
+--- /dev/null
++++ b/Content.Client/Silicons/Borgs/AiRemoteControlSystem.cs
+@@ -0,0 +1,7 @@
++using Content.Shared.Silicons.Borgs;
++
++namespace Content.Client.Silicons.Borgs;
++
++public sealed partial class AiRemoteControlSystem : SharedAiRemoteControlSystem
++{
++}
+\ No newline at end of file
+diff --git a/Content.Server/Silicons/Borgs/AiRemoteControlSystem.cs b/Content.Server/Silicons/Borgs/AiRemoteControlSystem.cs
+new file mode 100644
+index 0000000000..0555ba4907
+--- /dev/null
++++ b/Content.Server/Silicons/Borgs/AiRemoteControlSystem.cs
+@@ -0,0 +1,190 @@
++using Content.Server.Radio.Components;
++using Content.Server.Silicons.Laws;
++using Content.Shared.Silicons.Borgs;
++using Content.Shared.Silicons.Borgs.Components;
++using Content.Shared.Actions;
++using Content.Shared.Mind;
++using Content.Shared.Silicons.Laws.Components;
++using Content.Shared.Silicons.StationAi;
++using Content.Shared.StationAi;
++using Content.Shared.Verbs;
++using Robust.Server.GameObjects;
++using Robust.Shared.Player;
++
++namespace Content.Server.Silicons.Borgs;
++
++public sealed class AiRemoteControlSystem : SharedAiRemoteControlSystem
++{
++    [Dependency] private readonly SharedActionsSystem _actions = default!;
++    [Dependency] private readonly SiliconLawSystem _lawSystem = default!;
++    [Dependency] private readonly SharedStationAiSystem _stationAiSystem = default!;
++    [Dependency] private readonly SharedMindSystem _mind = default!;
++    [Dependency] private readonly UserInterfaceSystem _userInterface = default!;
++    [Dependency] private readonly SharedTransformSystem _xformSystem = default!;
++
++    public override void Initialize()
++    {
++        base.Initialize();
++
++        SubscribeLocalEvent<AiRemoteControllerComponent, ReturnMindIntoAiEvent>(OnReturnMindIntoAi);
++        SubscribeLocalEvent<AiRemoteControllerComponent, MapInitEvent>(OnMapInit);
++        SubscribeLocalEvent<AiRemoteControllerComponent, ComponentShutdown>(OnShutdown);
++        SubscribeLocalEvent<AiRemoteControllerComponent, GetVerbsEvent<AlternativeVerb>>(OnGetVerbs);
++        SubscribeLocalEvent<StationAiHeldComponent, AiRemoteControllerComponent.RemoteDeviceActionMessage>(OnUiRemoteAction);
++        SubscribeLocalEvent<StationAiHeldComponent, ToggleRemoteDevicesScreenEvent>(OnToggleRemoteDevicesScreen);
++    }
++
++    private void OnMapInit(Entity<AiRemoteControllerComponent> entity, ref MapInitEvent args)
++    {
++        var visionComp = EnsureComp<StationAiVisionComponent>(entity.Owner);
++        EntityUid? actionEnt = null;
++
++        _actions.AddAction(entity.Owner, ref actionEnt, entity.Comp.BackToAiAction);
++
++        if (actionEnt != null)
++            entity.Comp.BackToAiActionEntity = actionEnt.Value;
++    }
++
++    private void OnShutdown(Entity<AiRemoteControllerComponent> entity, ref ComponentShutdown args)
++    {
++        _actions.RemoveAction(entity.Owner, entity.Comp.BackToAiActionEntity);
++
++        var backArgs = new ReturnMindIntoAiEvent();
++        backArgs.Performer = entity;
++
++        if (TryComp(entity, out IntrinsicRadioTransmitterComponent? transmitter)
++            && entity.Comp.PreviouslyTransmitterChannels != null)
++            transmitter.Channels = [.. entity.Comp.PreviouslyTransmitterChannels];
++
++        if (TryComp(entity, out ActiveRadioComponent? activeRadio)
++            && entity.Comp.PreviouslyActiveRadioChannels != null)
++            activeRadio.Channels = [.. entity.Comp.PreviouslyActiveRadioChannels];
++
++        ReturnMindIntoAi(entity);
++    }
++
++    private void OnGetVerbs(Entity<AiRemoteControllerComponent> entity, ref GetVerbsEvent<AlternativeVerb> args)
++    {
++        var user = args.User;
++
++        if (!TryComp<StationAiHeldComponent>(user, out var stationAiHeldComp))
++            return;
++
++        var verb = new AlternativeVerb
++        {
++            Text = Loc.GetString("ai-remote-control"),
++            Act = () => AiTakeControl(user, entity)
++        };
++        args.Verbs.Add(verb);
++    }
++
++    private void OnReturnMindIntoAi(Entity<AiRemoteControllerComponent> entity, ref ReturnMindIntoAiEvent args) =>
++        ReturnMindIntoAi(entity);
++
++    public void AiTakeControl(EntityUid ai, EntityUid entity)
++    {
++        if (!_mind.TryGetMind(ai, out var mindId, out var mind))
++            return;
++
++        if (!TryComp<StationAiHeldComponent>(ai, out var stationAiHeldComp))
++            return;
++
++        if (!TryComp<AiRemoteControllerComponent>(entity, out var aiRemoteComp))
++            return;
++
++        if (TryComp(entity, out IntrinsicRadioTransmitterComponent? transmitter))
++        {
++            aiRemoteComp.PreviouslyTransmitterChannels = [.. transmitter.Channels];
++
++            if (TryComp(ai, out IntrinsicRadioTransmitterComponent? stationAiTransmitter))
++                transmitter.Channels = [.. stationAiTransmitter.Channels];
++        }
++
++        if (TryComp(entity, out ActiveRadioComponent? activeRadio))
++        {
++            aiRemoteComp.PreviouslyActiveRadioChannels = [.. activeRadio.Channels];
++
++            if (TryComp(ai, out ActiveRadioComponent? stationAiActiveRadio))
++                activeRadio.Channels = [.. stationAiActiveRadio.Channels];
++        }
++
++        _mind.ControlMob(ai, entity);
++        aiRemoteComp.AiHolder = ai;
++        aiRemoteComp.LinkedMind = mindId;
++
++        stationAiHeldComp.CurrentConnectedEntity = entity;
++
++        if (!_stationAiSystem.TryGetCore(ai, out var stationAiCore))
++            return;
++
++        _stationAiSystem.SwitchRemoteEntityMode(stationAiCore, false);
++
++        RewriteLaws(ai, entity);
++    }
++
++    private void OnToggleRemoteDevicesScreen(EntityUid uid, StationAiHeldComponent component, ToggleRemoteDevicesScreenEvent args)
++    {
++        if (args.Handled || !TryComp<ActorComponent>(uid, out var actor))
++            return;
++        args.Handled = true;
++
++        _userInterface.TryToggleUi(uid, RemoteDeviceUiKey.Key, actor.PlayerSession);
++
++        var query = EntityManager.EntityQueryEnumerator<AiRemoteControllerComponent>();
++        var remoteDevices = new List<RemoteDevicesData>();
++
++        while (query.MoveNext(out var queryUid, out var comp))
++        {
++            var data = new RemoteDevicesData
++            {
++                NetEntityUid = GetNetEntity(queryUid),
++                DisplayName = Comp<MetaDataComponent>(queryUid).EntityName
++            };
++
++            remoteDevices.Add(data);
++        }
++
++        var state = new RemoteDevicesBuiState(remoteDevices);
++        _userInterface.SetUiState(uid, RemoteDeviceUiKey.Key, state);
++    }
++
++    private void OnUiRemoteAction(EntityUid uid, StationAiHeldComponent component, AiRemoteControllerComponent.RemoteDeviceActionMessage msg)
++    {
++        if (msg.RemoteAction == null)
++            return;
++
++        var target = GetEntity(msg.RemoteAction?.Target);
++
++        if (!HasComp<AiRemoteControllerComponent>(target))
++            return;
++
++        switch (msg.RemoteAction?.ActionType)
++        {
++            case RemoteDeviceActionEvent.RemoteDeviceActionType.MoveToDevice:
++                if (!_stationAiSystem.TryGetCore(uid, out var stationAiCore)
++                    || stationAiCore.Comp?.RemoteEntity == null)
++                    return;
++                _xformSystem.SetCoordinates(stationAiCore.Comp.RemoteEntity.Value, Transform(target.Value).Coordinates);
++                break;
++
++            case RemoteDeviceActionEvent.RemoteDeviceActionType.TakeControl:
++                AiTakeControl(uid, target.Value);
++                break;
++        }
++    }
++
++    private void RewriteLaws(EntityUid from, EntityUid to)
++    {
++        if (!TryComp<SiliconLawProviderComponent>(from, out var fromLawsComp))
++            return;
++
++        if (!TryComp<SiliconLawProviderComponent>(to, out var toLawsComp))
++            return;
++
++        if (fromLawsComp.Lawset == null)
++            return;
++
++        var fromLaws = _lawSystem.GetLaws(from);
++        _lawSystem.SetLawsSilent(fromLaws.Laws, to);
++    }
++}
 diff --git a/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs b/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs
 index d1a32a6a5b..a83f36a2e1 100644
 --- a/Content.Server/Silicons/Borgs/BorgSwitchableTypeSystem.cs
@@ -216,6 +426,142 @@ index 0000000000..5dc739fc22
 +{
 +}
 \ No newline at end of file
+diff --git a/Content.Shared/Silicons/Borgs/Components/SharedAiREmoteControllerComponent.cs b/Content.Shared/Silicons/Borgs/Components/SharedAiREmoteControllerComponent.cs
+new file mode 100644
+index 0000000000..09f137f7d2
+--- /dev/null
++++ b/Content.Shared/Silicons/Borgs/Components/SharedAiREmoteControllerComponent.cs
+@@ -0,0 +1,63 @@
++using Robust.Shared.Prototypes;
++using Robust.Shared.Serialization;
++
++namespace Content.Shared.Silicons.Borgs.Components;
++
++[RegisterComponent]
++public sealed partial class AiRemoteControllerComponent : Component
++{
++    [DataField] public EntityUid? AiHolder;
++    [DataField] public EntityUid? LinkedMind;
++
++    [DataField] public string[]? PreviouslyTransmitterChannels;
++    [DataField] public string[]? PreviouslyActiveRadioChannels;
++
++    [DataField] public EntProtoId BackToAiAction = "ActionBackToAi";
++    [DataField] public EntityUid? BackToAiActionEntity;
++
++    [Serializable, NetSerializable]
++    public sealed class RemoteDeviceActionMessage : BoundUserInterfaceMessage
++    {
++        public readonly RemoteDeviceActionEvent? RemoteAction;
++        public RemoteDeviceActionMessage(RemoteDeviceActionEvent remoteDeviceAction)
++        {
++            RemoteAction = remoteDeviceAction;
++        }
++    }
++}
++
++[Serializable, NetSerializable]
++public sealed class RemoteDeviceActionEvent : EntityEventArgs
++{
++    public enum RemoteDeviceActionType
++    {
++        MoveToDevice,
++        TakeControl
++    }
++    public RemoteDeviceActionType ActionType;
++    public NetEntity Target;
++
++    public RemoteDeviceActionEvent(RemoteDeviceActionType actionType, NetEntity target)
++    {
++        ActionType = actionType;
++        Target = target;
++    }
++}
++
++[Serializable, NetSerializable]
++public record struct RemoteDevicesData()
++{
++    public string DisplayName = string.Empty;
++    public NetEntity NetEntityUid = NetEntity.Invalid;
++}
++
++[Serializable, NetSerializable]
++public sealed class RemoteDevicesBuiState : BoundUserInterfaceState
++{
++    public List<RemoteDevicesData> DeviceList;
++
++    public RemoteDevicesBuiState(List<RemoteDevicesData> deviceList)
++    {
++        DeviceList = deviceList;
++    }
++}
+\ No newline at end of file
+diff --git a/Content.Shared/Silicons/Borgs/SharedAiRemoteControlSystem.cs b/Content.Shared/Silicons/Borgs/SharedAiRemoteControlSystem.cs
+new file mode 100644
+index 0000000000..890112d705
+--- /dev/null
++++ b/Content.Shared/Silicons/Borgs/SharedAiRemoteControlSystem.cs
+@@ -0,0 +1,60 @@
++using Content.Shared.Silicons.Borgs.Components;
++using Content.Shared.Actions;
++using Content.Shared.Mind;
++using Content.Shared.Silicons.StationAi;
++using Robust.Shared.Serialization;
++
++namespace Content.Shared.Silicons.Borgs;
++
++public abstract class SharedAiRemoteControlSystem : EntitySystem
++{
++    [Dependency] private readonly SharedStationAiSystem _stationAiSystem = default!;
++    [Dependency] private readonly SharedTransformSystem _xformSystem = default!;
++    [Dependency] private readonly SharedMindSystem _mind = default!;
++
++    public override void Initialize()
++    {
++        base.Initialize();
++    }
++
++    public void ReturnMindIntoAi(EntityUid entity)
++    {
++        if (!TryComp<AiRemoteControllerComponent>(entity, out var remoteComp))
++            return;
++
++        if (remoteComp?.AiHolder == null
++            || !_stationAiSystem.TryGetCore(remoteComp.AiHolder.Value, out var stationAiCore)
++            || stationAiCore.Comp?.RemoteEntity == null)
++            return;
++
++        if (remoteComp.LinkedMind == null)
++            return;
++
++        if (!TryComp<StationAiHeldComponent>(remoteComp.AiHolder.Value, out var stationAiHeldComp))
++            return;
++
++        stationAiHeldComp.CurrentConnectedEntity = null;
++
++        _mind.TransferTo(remoteComp.LinkedMind.Value, remoteComp.AiHolder);
++
++        _stationAiSystem.SwitchRemoteEntityMode(stationAiCore, true);
++        remoteComp.AiHolder = null;
++        remoteComp.LinkedMind = null;
++
++        _xformSystem.SetCoordinates(stationAiCore.Comp.RemoteEntity.Value, Transform(entity).Coordinates);
++    }
++}
++
++public sealed partial class ReturnMindIntoAiEvent : InstantActionEvent
++{
++}
++
++public sealed partial class ToggleRemoteDevicesScreenEvent : InstantActionEvent
++{
++}
++
++[Serializable, NetSerializable]
++public enum RemoteDeviceUiKey : byte
++{
++    Key
++}
 diff --git a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs b/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
 index e7433de604..4a32544732 100644
 --- a/Content.Shared/Silicons/Laws/SharedSiliconLawSystem.cs
