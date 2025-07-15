@@ -271,10 +271,18 @@ index e950d3f288..b51c0cf6d9 100644
              var payload = new NetworkPayload()
              {
 diff --git a/Content.Server/Silicons/Borgs/BorgSystem.cs b/Content.Server/Silicons/Borgs/BorgSystem.cs
-index 0cd407000f..4c2bcbfca5 100644
+index 0cd407000f..d5156dd53a 100644
 --- a/Content.Server/Silicons/Borgs/BorgSystem.cs
 +++ b/Content.Server/Silicons/Borgs/BorgSystem.cs
-@@ -104,6 +104,7 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
+@@ -24,6 +24,7 @@
+ using Content.Shared.Roles;
+ using Content.Shared.Silicons.Borgs;
+ using Content.Shared.Silicons.Borgs.Components;
++using Content.Shared.Silicons.StationAi;
+ using Content.Shared.Throwing;
+ using Content.Shared.Whitelist;
+ using Content.Shared.Wires;
+@@ -104,6 +105,7 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
          var used = args.Used;
          TryComp<BorgBrainComponent>(used, out var brain);
          TryComp<BorgModuleComponent>(used, out var module);
@@ -282,7 +290,7 @@ index 0cd407000f..4c2bcbfca5 100644
  
          if (TryComp<WiresPanelComponent>(uid, out var panel) && !panel.Open)
          {
-@@ -142,6 +143,20 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
+@@ -142,6 +144,20 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
              args.Handled = true;
              UpdateUI(uid, component);
          }
@@ -303,7 +311,7 @@ index 0cd407000f..4c2bcbfca5 100644
      }
  
      /// <summary>
-@@ -176,6 +191,13 @@ protected override void OnRemoved(EntityUid uid, BorgChassisComponent component,
+@@ -176,6 +192,13 @@ protected override void OnRemoved(EntityUid uid, BorgChassisComponent component,
          {
              _mind.TransferTo(mindId, args.Entity, mind: mind);
          }
