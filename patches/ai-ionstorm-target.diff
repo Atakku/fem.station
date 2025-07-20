@@ -1,0 +1,13 @@
+diff --git a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
+index 303f7dc676..a1d2fccf81 100644
+--- a/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
++++ b/Resources/Prototypes/Entities/Mobs/Player/silicon.yml
+@@ -293,6 +293,8 @@
+       state: ai_female
+   - type: NameIdentifier
+     group: StationAi
++  - type: IonStormTarget
++    chance: 0.5
+ 
+ # Hologram projection that the AI's eye tracks.
+ - type: entity
