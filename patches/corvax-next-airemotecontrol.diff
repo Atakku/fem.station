@@ -455,7 +455,7 @@ index e950d3f288..b51c0cf6d9 100644
              var payload = new NetworkPayload()
              {
 diff --git a/Content.Server/Silicons/Borgs/BorgSystem.cs b/Content.Server/Silicons/Borgs/BorgSystem.cs
-index 0cd407000f..9b1728f6b9 100644
+index 0cd407000f..7fcbfa678d 100644
 --- a/Content.Server/Silicons/Borgs/BorgSystem.cs
 +++ b/Content.Server/Silicons/Borgs/BorgSystem.cs
 @@ -24,6 +24,8 @@
@@ -475,12 +475,11 @@ index 0cd407000f..9b1728f6b9 100644
  
          if (TryComp<WiresPanelComponent>(uid, out var panel) && !panel.Open)
          {
-@@ -142,6 +145,20 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
+@@ -142,6 +145,19 @@ private void OnChassisInteractUsing(EntityUid uid, BorgChassisComponent componen
              args.Handled = true;
              UpdateUI(uid, component);
          }
 +
-+        
 +        if (component.BrainEntity == null && aiBrain != null &&
 +            _whitelistSystem.IsWhitelistPassOrNull(component.BrainWhitelist, used))
 +        {
@@ -496,11 +495,11 @@ index 0cd407000f..9b1728f6b9 100644
      }
  
      /// <summary>
-@@ -176,6 +193,13 @@ protected override void OnRemoved(EntityUid uid, BorgChassisComponent component,
+@@ -176,6 +192,13 @@ protected override void OnRemoved(EntityUid uid, BorgChassisComponent component,
          {
              _mind.TransferTo(mindId, args.Entity, mind: mind);
          }
-+        
++
 +        if (HasComp<AiRemoteBrainComponent>(args.Entity))
 +        {
 +            BorgDeactivate(uid, component);
@@ -778,7 +777,7 @@ index e7433de604..1b538efc2e 100644
          if (uid == args.UserUid)
          {
 diff --git a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
-index 72374a8a30..0d45481257 100644
+index 328dc58d85..ccf0e6181b 100644
 --- a/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
 +++ b/Content.Shared/Silicons/StationAi/SharedStationAiSystem.cs
 @@ -15,6 +15,7 @@
@@ -797,31 +796,29 @@ index 72374a8a30..0d45481257 100644
  
      // StationAiHeld is added to anything inside of an AI core.
      // StationAiHolder indicates it can hold an AI positronic brain (e.g. holocard / core).
-@@ -232,7 +234,12 @@ private void OnIntellicardDoAfter(Entity<StationAiHolderComponent> ent, ref Inte
- 
+@@ -235,6 +237,11 @@ private void OnIntellicardDoAfter(Entity<StationAiHolderComponent> ent, ref Inte
          // Try to insert our thing into them
          if (_slots.CanEject(ent.Owner, args.User, ent.Comp.Slot))
--        {
-+        {            
+         {
 +            if (ent.Comp.Slot.Item != null
 +                && TryComp<StationAiHeldComponent>(ent.Comp.Slot.Item, out var stationAiHeldComp))
 +                if (stationAiHeldComp.CurrentConnectedEntity != null)
 +                    _remoteSystem.ReturnMindIntoAi(stationAiHeldComp.CurrentConnectedEntity.Value);
-+            
++
              if (!_slots.TryInsert(args.Args.Target.Value, targetHolder.Slot, ent.Comp.Slot.Item!.Value, args.User, excludeUserAudio: true))
              {
                  return;
-@@ -290,6 +297,10 @@ private void OnHolderInteract(Entity<StationAiHolderComponent> ent, ref AfterInt
-             intelliComp.NextWarningAllowed = _timing.CurTime + intelliComp.WarningDelay;
+@@ -293,6 +300,10 @@ private void OnHolderInteract(Entity<StationAiHolderComponent> ent, ref AfterInt
              AnnounceIntellicardUsage(held, intelliComp.WarningSound);
          }
-+        
+ 
 +        if (TryComp<StationAiHeldComponent>(held, out var heldComp))
 +            if (heldComp.CurrentConnectedEntity != null)
 +                AnnounceIntellicardUsage(heldComp.CurrentConnectedEntity.Value, intelliComp.WarningSound);
- 
++
          var doAfterArgs = new DoAfterArgs(EntityManager, args.User, cardHasAi ? intelliComp.UploadTime : intelliComp.DownloadTime, new IntellicardDoAfterEvent(), args.Target, ent.Owner)
          {
+             BreakOnDamage = true,
 diff --git a/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs b/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs
 index 6dab1ee491..bec83d3cc2 100644
 --- a/Content.Shared/Silicons/StationAi/StationAiHeldComponent.cs
@@ -988,7 +985,7 @@ literal 0
 HcmV?d00001
 
 diff --git a/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json b/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
-index 434b9052e0..5e902b118a 100644
+index 434b9052e0..73ba9496c8 100644
 --- a/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
 +++ b/Resources/Textures/Interface/Actions/actions_ai.rsi/meta.json
 @@ -1,7 +1,7 @@
@@ -1004,10 +1001,9 @@ index 434b9052e0..5e902b118a 100644
  		},
  		{
  			"name": "door_overcharge_off"
--		}
 +		},
-+    {
++		{
 +			"name": "borg_control"
-+    }
+ 		}
  	]
  }
